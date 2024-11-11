@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bus Tracker</title>
+
+  <!-- Leaflet.js CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="../css/index.css" />
+</head>
+<body>
+  <header>
+    <h1>GANDAKI YATAYAT</h1>
+  </header>
+
+  <main>
+    <div id="map" style="height: 500px; width: 100%; border: 1px solid blue;"></div>
+    <div class="buttons">
+      <button id="startTrackingButton">Start Tracking</button>
+      <button id="stopTrackingButton" disabled>Stop Tracking</button>
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 GU Bus Tracker. All rights reserved.</p>
+  </footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <!-- Leaflet.js JS -->
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <!-- Custom JavaScript -->
+  <script src="../js/app.js"></script>
+</body>
+</html>
