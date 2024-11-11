@@ -47,7 +47,7 @@ async function login() {
             if (driverData.password === btoa(password)) {
                 const busSnapshot = await dbRef.child("busDetails").child(driverData.busID).get();
                 if (busSnapshot.exists()) {
-                    window.location.href = "../html/driver-dashboard.html";
+                    window.location.href = "/driver.github.io/html/driver-dashboard.html";
                 } else {
                     alert("Bus not found for this driver.");
                 }
