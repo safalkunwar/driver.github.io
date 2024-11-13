@@ -47,7 +47,18 @@ async function login() {
             if (driverData.password === btoa(password)) {
                 const busSnapshot = await dbRef.child("busDetails").child(driverData.busID).get();
                 if (busSnapshot.exists()) {
-                    window.location.href = "/driver.github.io/html/driver-dashboard.html";
+                    // Successfully logged in, store session data
+                    const sessionData = {
+                        driverID: driverID,
+                        busID: driverData.busID,
+                        loginTime: new Date().toISOString()  // Store the login time
+                    };
+
+                    // Save session data to a temporary session node
+                    await dbRef.child("sessions").child(driverID).set(sessionData);
+                    localStorage.setItem('driverID', driverID);
+                    // Redirect to the driver dashboard
+                    window.location.href = "./html/driver-dashboard.html";
                 } else {
                     alert("Bus not found for this driver.");
                 }
