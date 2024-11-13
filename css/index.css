@@ -114,3 +114,38 @@ footer {
   font-size: 24px;
 }
 
+.suggestions-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  max-height: 100px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-top: none;
+}
+
+.suggestions-list li {
+  padding: 8px;
+  cursor: pointer;
+  background: white;
+}
+
+.suggestions-list li:hover {
+  background: #f0f0f0;
+}.suggestions {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  z-index: 1000;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.suggestions div {
+  padding: 5px;
+  cursor: pointer;
+}
+
+.suggestions div:hover {
+  background-color: #e0e0e0;
+}
