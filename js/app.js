@@ -41,7 +41,7 @@ if (!speedDisplay) {
     document.body.appendChild(speedDisplay);
 }
 
-// Start tracking after session validation
+// Start Tracking function
 function startTracking() {
     const driverID = localStorage.getItem('driverID');
     if (!driverID) {
@@ -59,7 +59,7 @@ function startTracking() {
     document.getElementById('stopTrackingButton').disabled = false;
 }
 
-// Update bus marker and draw path
+// Update location and display on map
 function updateLocation(driverID) {
     if (!navigator.geolocation) {
         alert('Geolocation not supported by your browser.');
@@ -91,23 +91,74 @@ function updateLocation(driverID) {
     );
 }
 
-// Function to calculate speed and display it on the map
+// Calculate speed and display it on the map
 function calculateAndDisplaySpeed(currentSpeed) {
     const speedInKmh = currentSpeed ? (currentSpeed * 3.6).toFixed(1) : 0;
     speedDisplay.innerText = `Speed: ${speedInKmh} km/h`;
 }
 
-// Update or create a bus marker
+// Stop Tracking function
+function stopTracking() {
+    clearInterval(trackingInterval);
+    trackingInterval = null;
+
+    document.getElementById('startTrackingButton').disabled = false;
+    document.getElementById('stopTrackingButton').disabled = true;
+}
+
+// Direction popup toggle function
+function toggleDirectionPopup() {
+    const directionPopup = document.getElementById('directionPopup');
+    directionPopup.style.display = directionPopup.style.display === 'none' ? 'block' : 'none';
+}
+
+// Get directions (placeholder logic)
+function getDirections() {
+    const startLocation = document.getElementById('startLocation').value;
+    const destinationLocation = document.getElementById('destinationLocation').value;
+
+    if (!startLocation || !destinationLocation) {
+        alert('Please enter both start and destination locations.');
+        return;
+    }
+
+    alert(`Getting directions from ${startLocation} to ${destinationLocation}.`);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const startTrackingBtn = document.getElementById("startTrackingButton");
+    const stopTrackingBtn = document.getElementById("stopTrackingButton");
+    const getDirectionBtn = document.getElementById("directionButton");
+    const closeDirectionPopupBtn = document.getElementById("closeDirectionPopup");
+    const getDirectionsBtn = document.getElementById("getDirections");
+
+    // Only add event listeners to buttons that are found in the DOM
+    if (startTrackingBtn && stopTrackingBtn && getDirectionBtn && closeDirectionPopupBtn && getDirectionsBtn) {
+        startTrackingBtn.addEventListener("click", startTracking);
+        stopTrackingBtn.addEventListener("click", stopTracking);
+        getDirectionBtn.addEventListener("click", toggleDirectionPopup);
+        getDirectionsBtn.addEventListener("click", getDirections);
+        closeDirectionPopupBtn.addEventListener("click", toggleDirectionPopup);
+    } else {
+        console.error("One or more required buttons are not found in the DOM.");
+    }
+});
+
+
+// Update or create a bus marker on the map
 function updateBusMarker(bus, busId) {
     const { latitude, longitude, heading } = bus;
 
     if (busMarkers[busId]) {
+        // Update the existing marker's position
         busMarkers[busId].setLatLng([latitude, longitude]);
 
-        if (isDirectionTracking && heading !== null) {
-            busMarkers[busId].setRotationAngle(heading); // Rotate marker based on heading
+        // Rotate the marker based on heading, if available
+        if (heading !== null) {
+            busMarkers[busId].setRotationAngle(heading);
         }
     } else {
+        // Create a new marker if it doesn't exist
         const newMarker = L.marker([latitude, longitude], {
             icon: L.divIcon({
                 html: '🚌',
@@ -117,9 +168,14 @@ function updateBusMarker(bus, busId) {
         }).addTo(map);
         busMarkers[busId] = newMarker;
     }
+
+    // Center map on marker if auto-centering is enabled
+    if (isAutoCentering) {
+        map.setView([latitude, longitude], map.getZoom());
+    }
 }
 
-// Draws or updates the travel path for each bus
+// Draw or update the travel path for each bus
 function drawBusPath(busId, latitude, longitude) {
     if (!busPaths[busId]) {
         busPaths[busId] = {
@@ -137,7 +193,7 @@ function drawBusPath(busId, latitude, longitude) {
         map.removeLayer(pathData.polyline);
     }
 
-    // Check for revisited path (simplified overlap check)
+    // Alternate path color if revisiting a location
     if (pathData.coordinates.length > 1) {
         const [lastLat, lastLng] = pathData.coordinates[pathData.coordinates.length - 2];
         if (Math.abs(lastLat - latitude) < 0.0001 && Math.abs(lastLng - longitude) < 0.0001) {
@@ -145,65 +201,6 @@ function drawBusPath(busId, latitude, longitude) {
         }
     }
 
-    // Draw updated path with new color
+    // Draw updated path with the new color
     pathData.polyline = L.polyline(pathData.coordinates, { color: pathData.color }).addTo(map);
-
-    // Optionally, center the map
-    if (isAutoCentering) {
-        map.setView([latitude, longitude], map.getZoom());
-    }
 }
-
-// Stop tracking function
-function stopTracking() {
-    clearInterval(trackingInterval);
-    trackingInterval = null;
-
-    document.getElementById('startTrackingButton').disabled = false;
-    document.getElementById('stopTrackingButton').disabled = true;
-}
-
-// Direction popup toggle
-function toggleDirectionPopup() {
-    const directionPopup = document.getElementById('directionPopup');
-    directionPopup.style.display = directionPopup.style.display === 'none' ? 'block' : 'none';
-}
-
-// Get directions based on start and destination locations
-function getDirections() {
-    const startLocation = document.getElementById('startLocation').value;
-    const destinationLocation = document.getElementById('destinationLocation').value;
-
-    if (!startLocation || !destinationLocation) {
-        alert('Please enter both start and destination locations.');
-        return;
-    }
-
-    // Placeholder logic for directions - you can integrate an API like Google Maps here
-    alert(`Getting directions from ${startLocation} to ${destinationLocation}.`);
-}
-
-// Add event listeners
-document.getElementById('startTrackingButton').addEventListener('click', startTracking);
-document.getElementById('stopTrackingButton').addEventListener('click', stopTracking);
-document.getElementById('directionButton').addEventListener('click', toggleDirectionPopup);
-document.getElementById('getDirections').addEventListener('click', getDirections);
-document.getElementById('closeDirectionPopup').addEventListener('click', toggleDirectionPopup);
-
-// Auto-center control
-document.addEventListener("DOMContentLoaded", () => {
-    const startTrackingBtn = document.getElementById("startTracking");
-    const stopTrackingBtn = document.getElementById("stopTracking");
-    const getDirectionBtn = document.getElementById("getDirection");
-    const speedBtn = document.getElementById("speed");
-
-    if (startTrackingBtn && stopTrackingBtn && getDirectionBtn && speedBtn) {
-        startTrackingBtn.addEventListener("click", startTracking);
-        stopTrackingBtn.addEventListener("click", stopTracking);
-        getDirectionBtn.addEventListener("click", getDirection);
-        speedBtn.addEventListener("click", getSpeed);
-    } else {
-        console.error("One or more buttons are not found in the DOM.");
-    }
-});
-
