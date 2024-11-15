@@ -11,16 +11,27 @@
 </head>
 <body>
   <main>
-    <div id="map" style="height: 600px; width: 100%; border: 1px solid blue;"></div>
-    <div id="controls">
-      <button id="startTrackingButton">Start Tracking</button>
-      <button id="stopTrackingButton" disabled>Stop Tracking</button>
-  </div>
-  <p id="dashboard-error" class="error"></p>
+    <!-- Map container -->
+    <div id="map-container">
+      <!-- Top controls (Speed and Direction) -->
+      <div id="top-controls">
+        <button id="speedButton">Speed of Bus</button>
+        <button id="directionButton">Get Direction</button>
+      </div>
+  
+      <!-- Map area -->
+      <div id="map"></div>
+  
+      <!-- Bottom controls (Start and Stop Tracking) -->
+      <div id="bottom-controls">
+        <button id="startTrackingButton">Start Tracking</button>
+        <button id="stopTrackingButton" disabled>Stop Tracking</button>
+      </div>
+    </div>
   </main>
-  <button id="directionButton">Get Directions</button>
-
- <div id="directionPopup" style="display: none; position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: 320px; background: white; padding: 20px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); border-radius: 8px; z-index: 1000;">
+  
+  <!-- Direction Popup -->
+  <div id="directionPopup">
     <h3>Get Directions</h3>
     <label for="startLocation">Starting Point:</label>
     <input type="text" id="startLocation" placeholder="Enter starting location">
@@ -33,7 +44,9 @@
     
     <button id="getDirections" style="margin-top: 10px;">Get Directions</button>
     <button id="closeDirectionPopup" style="margin-top: 10px;">Close</button>
-</div>
+  </div>
+  <p id="dashboard-error" class="error"></p>
+  
 
   <footer>
     <p>© 2025 GU Bus Tracker. All rights reserved.</p>
