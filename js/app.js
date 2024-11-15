@@ -179,28 +179,57 @@ function updateBusMarker(bus, busId) {
 function drawBusPath(busId, latitude, longitude) {
     if (!busPaths[busId]) {
         busPaths[busId] = {
-            coordinates: [],
-            polyline: null,
-            color: 'blue' // Initial color
+            lastPosition: null,
+            segments: [] // Store individual polylines for each segment
         };
     }
 
     const pathData = busPaths[busId];
-    pathData.coordinates.push([latitude, longitude]);
 
-    // Remove old polyline
-    if (pathData.polyline) {
-        map.removeLayer(pathData.polyline);
+    // If this is the first point, just save the position
+    if (!pathData.lastPosition) {
+        pathData.lastPosition = { latitude, longitude };
+        return;
     }
 
-    // Alternate path color if revisiting a location
-    if (pathData.coordinates.length > 1) {
-        const [lastLat, lastLng] = pathData.coordinates[pathData.coordinates.length - 2];
-        if (Math.abs(lastLat - latitude) < 0.0001 && Math.abs(lastLng - longitude) < 0.0001) {
-            pathData.color = pathData.color === 'blue' ? 'green' : 'blue'; // Toggle color
-        }
-    }
+    const { latitude: lastLat, longitude: lastLng } = pathData.lastPosition;
 
-    // Draw updated path with the new color
-    pathData.polyline = L.polyline(pathData.coordinates, { color: pathData.color }).addTo(map);
+    // Determine the color of the segment based on some condition (e.g., speed)
+    const segmentColor = determineSegmentColor(busId, latitude, longitude, lastLat, lastLng);
+
+    // Create a new polyline for the segment
+    const segment = L.polyline([[lastLat, lastLng], [latitude, longitude]], {
+        color: segmentColor,
+        weight: 4, // Set line thickness
+    }).addTo(map);
+
+    // Save the segment for future reference
+    pathData.segments.push(segment);
+
+    // Update the last position
+    pathData.lastPosition = { latitude, longitude };
+}
+
+// Function to determine the color of the segment (you can customize this logic)
+function determineSegmentColor(busId, latitude, longitude, lastLat, lastLng) {
+    const distance = calculateDistance(latitude, longitude, lastLat, lastLng);
+    if (distance < 0.01) return 'red'; // Short distance = red
+    if (distance < 0.05) return 'orange'; // Moderate distance = orange
+    return 'green'; // Long distance = green
+}
+
+// Helper function to calculate the distance between two points (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c / 1000; // Return distance in kilometers
 }
