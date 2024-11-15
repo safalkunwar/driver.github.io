@@ -1,4 +1,4 @@
-// Firebase Configuration (keep the same)
+// Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyBZpF...",
     authDomain: "v-track-gu999.firebaseapp.com",
@@ -23,12 +23,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let trackingInterval = null;
-let previousPosition = null;
-let speedDisplay = document.getElementById('speedDisplay');
 let isAutoCentering = true;
+let speedDisplay = document.getElementById('speedDisplay');
 let isDirectionTracking = false;
 
-// HTML element to display speed
+// Speed display area
 if (!speedDisplay) {
     speedDisplay = document.createElement('div');
     speedDisplay.id = 'speedDisplay';
@@ -42,41 +41,32 @@ if (!speedDisplay) {
     document.body.appendChild(speedDisplay);
 }
 
-// Function to get driver ID from localStorage
-function getDriverID() {
-    return localStorage.getItem('driverID');
-}
-
-// Function to start tracking without session timeout check
-function validateSessionAndTrack() {
-    const driverID = getDriverID();
+// Start tracking after session validation
+function startTracking() {
+    const driverID = localStorage.getItem('driverID');
     if (!driverID) {
         console.log("No driver ID found. Redirecting to login.");
         window.location.href = '../index.html';
         return;
     }
-    startTracking(driverID);
-}
 
-// Start tracking and remove session refresh interval
-function startTracking(driverID) {
-    if (trackingInterval) return;
+    if (trackingInterval) return; // Prevent multiple intervals
 
-    updateLocation(driverID);
+    // Start updating location every 2 seconds
     trackingInterval = setInterval(() => updateLocation(driverID), 2000);
 
     document.getElementById('startTrackingButton').disabled = true;
     document.getElementById('stopTrackingButton').disabled = false;
 }
 
-// Update the bus marker and draw path on the map
+// Update bus marker and draw path
 function updateLocation(driverID) {
     if (!navigator.geolocation) {
         alert('Geolocation not supported by your browser.');
         return;
     }
 
-    navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
         position => {
             const { latitude, longitude, speed, heading } = position.coords;
             const timestamp = Date.now();
@@ -85,8 +75,8 @@ function updateLocation(driverID) {
             dbRef.child(driverID).child(timestamp.toString()).set({
                 latitude: latitude,
                 longitude: longitude,
-                speed: speed, // Store speed
-                heading: heading, // Store heading
+                speed: speed,
+                heading: heading,
                 timestamp: timestamp
             });
 
@@ -101,7 +91,7 @@ function updateLocation(driverID) {
     );
 }
 
-// Function to calculate speed and display on the map
+// Function to calculate speed and display it on the map
 function calculateAndDisplaySpeed(currentSpeed) {
     const speedInKmh = currentSpeed ? (currentSpeed * 3.6).toFixed(1) : 0;
     speedDisplay.innerText = `Speed: ${speedInKmh} km/h`;
@@ -139,11 +129,10 @@ function drawBusPath(busId, latitude, longitude) {
         };
     }
 
-    // Add the new location to path coordinates
     const pathData = busPaths[busId];
     pathData.coordinates.push([latitude, longitude]);
 
-    // Remove the old polyline
+    // Remove old polyline
     if (pathData.polyline) {
         map.removeLayer(pathData.polyline);
     }
@@ -156,7 +145,7 @@ function drawBusPath(busId, latitude, longitude) {
         }
     }
 
-    // Draw the updated path with new color
+    // Draw updated path with new color
     pathData.polyline = L.polyline(pathData.coordinates, { color: pathData.color }).addTo(map);
 
     // Optionally, center the map
@@ -165,13 +154,7 @@ function drawBusPath(busId, latitude, longitude) {
     }
 }
 
-// Function to toggle direction tracking
-function toggleDirectionTracking() {
-    isDirectionTracking = !isDirectionTracking;
-    document.getElementById('directionButton').innerText = isDirectionTracking ? "Stop Direction" : "Show Direction";
-}
-
-// Function to stop tracking
+// Stop tracking function
 function stopTracking() {
     clearInterval(trackingInterval);
     trackingInterval = null;
@@ -180,104 +163,47 @@ function stopTracking() {
     document.getElementById('stopTrackingButton').disabled = true;
 }
 
-// Start tracking on page load
-document.addEventListener("DOMContentLoaded", validateSessionAndTrack);
+// Direction popup toggle
+function toggleDirectionPopup() {
+    const directionPopup = document.getElementById('directionPopup');
+    directionPopup.style.display = directionPopup.style.display === 'none' ? 'block' : 'none';
+}
 
-// Event listeners for start/stop tracking buttons
-document.getElementById('startTrackingButton').addEventListener('click', validateSessionAndTrack);
+// Get directions based on start and destination locations
+function getDirections() {
+    const startLocation = document.getElementById('startLocation').value;
+    const destinationLocation = document.getElementById('destinationLocation').value;
+
+    if (!startLocation || !destinationLocation) {
+        alert('Please enter both start and destination locations.');
+        return;
+    }
+
+    // Placeholder logic for directions - you can integrate an API like Google Maps here
+    alert(`Getting directions from ${startLocation} to ${destinationLocation}.`);
+}
+
+// Add event listeners
+document.getElementById('startTrackingButton').addEventListener('click', startTracking);
 document.getElementById('stopTrackingButton').addEventListener('click', stopTracking);
+document.getElementById('directionButton').addEventListener('click', toggleDirectionPopup);
+document.getElementById('getDirections').addEventListener('click', getDirections);
+document.getElementById('closeDirectionPopup').addEventListener('click', toggleDirectionPopup);
 
-// Add a direction button to toggle direction tracking
-const directionPopup = document.getElementById('directionPopup');
-const startLocationInput = document.getElementById('startLocation');
-const destinationLocationInput = document.getElementById('destinationLocation');
-const startSuggestions = document.getElementById('startSuggestions');
-const destSuggestions = document.getElementById('destSuggestions');
-const useCurrentLocationBtn = document.getElementById('useCurrentLocation');
-const getDirectionsBtn = document.getElementById('getDirections');
-const closeDirectionPopupBtn = document.getElementById('closeDirectionPopup');
-let routeLine;
+// Auto-center control
+document.addEventListener("DOMContentLoaded", () => {
+    const startTrackingBtn = document.getElementById("startTracking");
+    const stopTrackingBtn = document.getElementById("stopTracking");
+    const getDirectionBtn = document.getElementById("getDirection");
+    const speedBtn = document.getElementById("speed");
 
-// Show/Hide Direction Popup
-function showDirectionPopup() { directionPopup.style.display = 'block'; }
-function hideDirectionPopup() { directionPopup.style.display = 'none'; clearSuggestions(); startLocationInput.value = ''; destinationLocationInput.value = ''; if (routeLine) { map.removeLayer(routeLine); } }
-
-// Event listeners for popup
-document.getElementById('directionButton').onclick = showDirectionPopup;
-closeDirectionPopupBtn.addEventListener('click', hideDirectionPopup);
-
-// Fetch and display location suggestions
-async function fetchSuggestions(query, suggestionList) {
-    if (query.length < 3) return;
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-    const data = await response.json();
-    suggestionList.innerHTML = ''; // Clear existing suggestions
-    data.forEach(location => {
-        const suggestion = document.createElement('li');
-        suggestion.textContent = `${location.display_name}`;
-        suggestion.onclick = () => { 
-            if (suggestionList === startSuggestions) startLocationInput.value = location.display_name;
-            else destinationLocationInput.value = location.display_name;
-            clearSuggestions();
-        };
-        suggestionList.appendChild(suggestion);
-    });
-}
-
-// Clear suggestions
-function clearSuggestions() {
-    startSuggestions.innerHTML = '';
-    destSuggestions.innerHTML = '';
-}
-
-// Suggest location while typing
-startLocationInput.addEventListener('input', () => fetchSuggestions(startLocationInput.value, startSuggestions));
-destinationLocationInput.addEventListener('input', () => fetchSuggestions(destinationLocationInput.value, destSuggestions));
-
-// Use current location for start point
-useCurrentLocationBtn.addEventListener('click', () => {
-    navigator.geolocation.getCurrentPosition(position => {
-        const { latitude, longitude } = position.coords;
-        startLocationInput.value = `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`;
-        clearSuggestions();
-    }, error => { alert("Unable to retrieve your location."); console.error(error); });
+    if (startTrackingBtn && stopTrackingBtn && getDirectionBtn && speedBtn) {
+        startTrackingBtn.addEventListener("click", startTracking);
+        stopTrackingBtn.addEventListener("click", stopTracking);
+        getDirectionBtn.addEventListener("click", getDirection);
+        speedBtn.addEventListener("click", getSpeed);
+    } else {
+        console.error("One or more buttons are not found in the DOM.");
+    }
 });
 
-// Get directions and display route on the map
-getDirectionsBtn.addEventListener('click', async () => {
-    const startLocation = startLocationInput.value;
-    const destination = destinationLocationInput.value;
-
-    if (!startLocation || !destination) {
-        alert('Please enter both a starting point and a destination.');
-        return;
-    }
-
-    const startCoords = await getCoordinates(startLocation);
-    const destinationCoords = await getCoordinates(destination);
-
-    if (!startCoords || !destinationCoords) {
-        alert('Unable to find one or both of the locations.');
-        return;
-    }
-
-    if (routeLine) map.removeLayer(routeLine); // Remove previous route if any
-    const waypoints = [startCoords, destinationCoords];
-    routeLine = L.polyline(waypoints, { color: 'blue', weight: 5, opacity: 0.8 }).addTo(map);
-    L.marker(startCoords, { title: 'Start' }).addTo(map).bindPopup("Starting Point").openPopup();
-    L.marker(destinationCoords, { title: 'Destination' }).addTo(map).bindPopup("Destination").openPopup();
-    map.fitBounds(routeLine.getBounds()); // Center map on route
-
-    hideDirectionPopup();
-});
-
-// Helper function to get coordinates for a location
-async function getCoordinates(location) {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`);
-    const data = await response.json();
-    if (data && data.length > 0) {
-        const { lat, lon } = data[0];
-        return [parseFloat(lat), parseFloat(lon)];
-    }
-    return null;
-}
