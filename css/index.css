@@ -55,7 +55,43 @@ header {
   z-index: 10;
 }
 
-.map-buttons button,
+/* Speedometer and Get Direction buttons - Always visible at the top */
+#top-controls {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+#top-controls button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#top-controls button:hover {
+  background-color: #0056b3;
+}
+
+/* Start/Stop Tracking buttons */
+#bottom-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
 #bottom-controls button {
   padding: 10px 20px;
   background-color: #007bff;
@@ -71,20 +107,8 @@ header {
   background-color: #dc3545;
 }
 
-.map-buttons button:hover,
 #bottom-controls button:hover {
   background-color: #0056b3;
-}
-
-/* Bottom controls for start/stop buttons */
-#bottom-controls {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  z-index: 1000;
 }
 
 /* Popup styling for directions */
