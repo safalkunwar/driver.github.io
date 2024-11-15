@@ -15,7 +15,6 @@
     <div id="map-container">
       <!-- Top controls (Speed and Direction) -->
       <div id="top-controls">
-        <button id="speedButton">Speed of Bus</button>
         <button id="directionButton">Get Direction</button>
       </div>
   
@@ -31,9 +30,9 @@
   </main>
   
   <!-- Direction Popup -->
-  <div id="directionPopup">
+  <div id="directionPopup" style="display: none;">
     <h3>Get Directions</h3>
-    <label for="startLocation">Starting Point:</label>
+    <label for="startLocation">Starting Tracking:</label>
     <input type="text" id="startLocation" placeholder="Enter starting location">
     <ul id="startSuggestions" class="suggestions-list"></ul>
     <button id="useCurrentLocation">Use My Location</button><br><br>
@@ -47,7 +46,6 @@
   </div>
   <p id="dashboard-error" class="error"></p>
   
-
   <footer>
     <p>© 2025 GU Bus Tracker. All rights reserved.</p>
   </footer>
