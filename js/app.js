@@ -9,227 +9,244 @@ const firebaseConfig = {
     appId: "1:1046512747961:web:80df40c48bca3159296268",
     measurementId: "G-38X29VT1YT"
 };
+
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
-
 const dbRef = database.ref('BusLocation');
-const sessionRef = database.ref('sessions');
 
-const busMarkers = {};
-const busPaths = {}; // Track paths for each bus
-const map = L.map('map').setView([27.7172, 85.3240], 13);
+// Initialize Leaflet Map
+const map = L.map('map').setView([28.215176984699085, 83.98871119857192], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
+// Variables
+const busMarkers = {}; // Store bus markers
+const busPaths = {};   // Store polylines for buses
+let isTracking = false; // State for tracking
 let trackingInterval = null;
-let isAutoCentering = true;
-let speedDisplay = document.getElementById('speedDisplay');
-let isDirectionTracking = false;
 
-// Speed display area
-if (!speedDisplay) {
-    speedDisplay = document.createElement('div');
-    speedDisplay.id = 'speedDisplay';
-    speedDisplay.style.position = 'fixed';
-    speedDisplay.style.bottom = '10px';
-    speedDisplay.style.left = '10px';
-    speedDisplay.style.padding = '8px';
-    speedDisplay.style.background = 'rgba(255, 255, 255, 0.8)';
-    speedDisplay.style.borderRadius = '5px';
-    speedDisplay.style.fontSize = '16px';
-    document.body.appendChild(speedDisplay);
+// Helper to calculate speed and direction
+function calculateSpeedAndDirection(lastLocation, currentLocation) {
+    const R = 6371; // Radius of Earth in km
+    const lat1 = lastLocation.latitude * Math.PI / 180;
+    const lon1 = lastLocation.longitude * Math.PI / 180;
+    const lat2 = currentLocation.latitude * Math.PI / 180;
+    const lon2 = currentLocation.longitude * Math.PI / 180;
+
+    const deltaLat = lat2 - lat1;
+    const deltaLon = lon2 - lon1;
+
+    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) *
+        Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const distance = R * c; // Distance in km
+
+    // Speed in km/h
+    const timeDiff = (Date.now() - lastLocation.timestamp) / 1000; // Time difference in seconds
+    const speed = (distance / timeDiff) * 3600; // Speed in km/h
+
+    // Direction calculation (bearing)
+    const y = Math.sin(deltaLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+    const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; // In degrees
+
+    return { speed, direction: bearing };
 }
 
-// Start Tracking function
+// Draw Polyline for Each Bus Using Firebase Data
+function drawPolyline(busID, locations) {
+    // If the bus already has a polyline, remove the previous one
+    if (busPaths[busID]) {
+        map.removeLayer(busPaths[busID]);
+    }
+
+    // Filter out invalid locations (undefined or missing lat/lng)
+    const validLocations = locations.filter(loc => loc.latitude !== undefined && loc.longitude !== undefined);
+
+    if (validLocations.length > 0) {
+        const pathCoordinates = validLocations.map(loc => [loc.latitude, loc.longitude]);
+
+        const polyline = L.polyline(pathCoordinates, {
+            color: 'blue',
+            weight: 3,
+            opacity: 0.7,
+            smoothFactor: 1  // Smooth the line drawing for a continuous effect
+        });
+
+        busPaths[busID] = polyline;  // Store the polyline for this bus
+        polyline.addTo(map); // Add the polyline to the map
+    } else {
+        console.warn(`No valid locations found for bus ${busID}`);
+    }
+}
+
+// Update or Add Marker for a Bus
+function updateBusMarker(busID, location) {
+    const { latitude, longitude } = location;
+
+    // Validate coordinates before using them
+    if (latitude === undefined || longitude === undefined || isNaN(latitude) || isNaN(longitude)) {
+        console.error(`Invalid location data for bus ${busID}: latitude: ${latitude}, longitude: ${longitude}`);
+        return;
+    }
+
+    // If the marker already exists, update its position
+    if (busMarkers[busID]) {
+        busMarkers[busID].setLatLng([latitude, longitude]); // Update position of existing marker
+    } else {
+        // Create a new marker if it doesn't exist
+        const marker = L.marker([latitude, longitude]).bindPopup(`Bus ID: ${busID}`);
+        busMarkers[busID] = marker;
+        map.addLayer(marker);
+    }
+}
+
+// Fetch Locations and Draw Paths for All Buses
+function fetchBusLocations() {
+    dbRef.once('value', snapshot => {
+        const buses = snapshot.val();
+        if (!buses) {
+            console.warn("No bus data found in Firebase.");
+            return;
+        }
+
+        Object.keys(buses).forEach(busID => {
+            const rawLocations = buses[busID];
+            const locations = Object.values(rawLocations)
+                .map(item => {
+                    if (item && typeof item === 'object') {
+                        if ('latitude' in item && 'longitude' in item) {
+                            return {
+                                latitude: item.latitude,
+                                longitude: item.longitude,
+                                timestamp: item.timestamp || null, // Include timestamp if available
+                            };
+                        } else {
+                            console.warn('Skipping invalid location entry:', item);
+                            return null;
+                        }
+                    }
+                    console.warn('Skipping invalid entry:', item);
+                    return null;
+                })
+                .filter(location => location !== null); // Remove invalid entries
+            console.log(`Processed locations for ${busID}:`, locations);
+        
+            if (locations.length > 0) {
+                // Render buses and paths
+                renderBusAndPath(busID, locations);
+            } else {
+                console.warn(`No valid locations for ${busID}`);
+            }
+        });
+        
+        
+        
+    });
+}
+
+// Start Tracking Driver's Bus
 function startTracking() {
     const driverID = localStorage.getItem('driverID');
     if (!driverID) {
-        console.log("No driver ID found. Redirecting to login.");
+        alert('Driver ID not found. Redirecting to login...');
         window.location.href = '../index.html';
         return;
     }
 
-    if (trackingInterval) return; // Prevent multiple intervals
-
-    // Start updating location every 2 seconds
-    trackingInterval = setInterval(() => updateLocation(driverID), 2000);
-
-    document.getElementById('startTrackingButton').disabled = true;
-    document.getElementById('stopTrackingButton').disabled = false;
+    if (!trackingInterval && !isTracking) {
+        isTracking = true;
+        trackingInterval = setInterval(() => updateDriverLocation(driverID), 2000); // Every 2 seconds
+    }
 }
 
-// Update location and display on map
-function updateLocation(driverID) {
+// Stop Tracking Driver's Bus
+function stopTracking() {
+    if (trackingInterval) {
+        clearInterval(trackingInterval);
+        trackingInterval = null;
+        isTracking = false;
+        alert("Tracking stopped.");
+    }
+}
+
+// Update Driver's Location
+function updateDriverLocation(driverID) {
     if (!navigator.geolocation) {
-        alert('Geolocation not supported by your browser.');
+        alert('Geolocation is not supported by your browser.');
         return;
     }
 
     navigator.geolocation.getCurrentPosition(
         position => {
-            const { latitude, longitude, speed, heading } = position.coords;
+            const { latitude, longitude } = position.coords;
             const timestamp = Date.now();
 
-            // Save to Firebase
-            dbRef.child(driverID).child(timestamp.toString()).set({
-                latitude: latitude,
-                longitude: longitude,
-                speed: speed,
-                heading: heading,
-                timestamp: timestamp
+            // Update Firebase with driver's current location
+            dbRef.child(driverID).child(timestamp).set({
+                latitude,
+                longitude,
+                timestamp
             });
 
-            // Calculate and display speed
-            calculateAndDisplaySpeed(speed);
-            updateBusMarker({ latitude, longitude, heading }, driverID);
-            drawBusPath(driverID, latitude, longitude);
+            // Handle the case where the timestamp is part of the data
+            if (!Array.isArray(busPaths[driverID])) {
+                busPaths[driverID] = []; // Initialize as an array if not already
+            }
+
+            busPaths[driverID].push({ latitude, longitude, timestamp });
+
+            // Update marker and polyline on map
+            updateBusMarker(driverID, { latitude, longitude });
+            drawPolyline(driverID, busPaths[driverID]); // Redraw the polyline smoothly
         },
         error => {
-            console.error('Error getting location:', error);
+            console.error("Error retrieving location:", error);
         }
     );
 }
 
-// Calculate speed and display it on the map
-function calculateAndDisplaySpeed(currentSpeed) {
-    const speedInKmh = currentSpeed ? (currentSpeed * 3.6).toFixed(1) : 0;
-    speedDisplay.innerText = `Speed: ${speedInKmh} km/h`;
-}
+// Initialize Buttons
+document.getElementById('startTracking').addEventListener('click', startTracking);
+document.getElementById('stopTracking').addEventListener('click', stopTracking);
 
-// Stop Tracking function
-function stopTracking() {
-    clearInterval(trackingInterval);
-    trackingInterval = null;
+// Load Paths on Page Load
+window.onload = fetchBusLocations;
 
-    document.getElementById('startTrackingButton').disabled = false;
-    document.getElementById('stopTrackingButton').disabled = true;
-}
-
-// Direction popup toggle function
-function toggleDirectionPopup() {
-    const directionPopup = document.getElementById('directionPopup');
-    directionPopup.style.display = directionPopup.style.display === 'none' ? 'block' : 'none';
-}
-
-// Get directions (placeholder logic)
-function getDirections() {
-    const startLocation = document.getElementById('startLocation').value;
-    const destinationLocation = document.getElementById('destinationLocation').value;
-
-    if (!startLocation || !destinationLocation) {
-        alert('Please enter both start and destination locations.');
-        return;
-    }
-
-    alert(`Getting directions from ${startLocation} to ${destinationLocation}.`);
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    const startTrackingBtn = document.getElementById("startTrackingButton");
-    const stopTrackingBtn = document.getElementById("stopTrackingButton");
-    const getDirectionBtn = document.getElementById("directionButton");
-    const closeDirectionPopupBtn = document.getElementById("closeDirectionPopup");
-    const getDirectionsBtn = document.getElementById("getDirections");
-
-    // Only add event listeners to buttons that are found in the DOM
-    if (startTrackingBtn && stopTrackingBtn && getDirectionBtn && closeDirectionPopupBtn && getDirectionsBtn) {
-        startTrackingBtn.addEventListener("click", startTracking);
-        stopTrackingBtn.addEventListener("click", stopTracking);
-        getDirectionBtn.addEventListener("click", toggleDirectionPopup);
-        getDirectionsBtn.addEventListener("click", getDirections);
-        closeDirectionPopupBtn.addEventListener("click", toggleDirectionPopup);
+// Initialize on Page Load
+window.onload = () => {
+    const driverID = localStorage.getItem('driverID');
+    if (driverID) {
+        fetchBusLocations(); // Load all bus paths
     } else {
-        console.error("One or more required buttons are not found in the DOM.");
+        alert('No driver ID found. Redirecting to login.');
+        window.location.href = '../index.html';
     }
-});
-
-
-// Update or create a bus marker on the map
-function updateBusMarker(bus, busId) {
-    const { latitude, longitude, heading } = bus;
-
-    if (busMarkers[busId]) {
-        // Update the existing marker's position
-        busMarkers[busId].setLatLng([latitude, longitude]);
-
-        // Rotate the marker based on heading, if available
-        if (heading !== null) {
-            busMarkers[busId].setRotationAngle(heading);
-        }
-    } else {
-        // Create a new marker if it doesn't exist
-        const newMarker = L.marker([latitude, longitude], {
-            icon: L.divIcon({
-                html: '🚌',
-                className: 'bus-icon',
-                iconSize: [30, 30]
-            })
-        }).addTo(map);
-        busMarkers[busId] = newMarker;
+};
+function renderBusAndPath(busID, locations) {
+    // Clear existing markers and paths for this bus (if necessary)
+    if (busMarkers[busID]) {
+        map.removeLayer(busMarkers[busID]);
+    }
+    if (busPaths[busID]) {
+        map.removeLayer(busPaths[busID]);
     }
 
-    // Center map on marker if auto-centering is enabled
-    if (isAutoCentering) {
-        map.setView([latitude, longitude], map.getZoom());
-    }
+    // Add markers for each location
+    locations.forEach(location => {
+        L.marker([location.latitude, location.longitude])
+            .addTo(map)
+            .bindPopup(`Bus ${busID} at ${new Date(location.timestamp).toLocaleTimeString()}`);
+    });
+
+    // Draw path
+    const latLngs = locations.map(loc => [loc.latitude, loc.longitude]);
+    const polyline = L.polyline(latLngs, { color: 'blue' });
+    busPaths[busID] = polyline; // Save the path for potential updates
+    polyline.addTo(map);
 }
 
-// Draw or update the travel path for each bus
-function drawBusPath(busId, latitude, longitude) {
-    if (!busPaths[busId]) {
-        busPaths[busId] = {
-            lastPosition: null,
-            segments: [] // Store individual polylines for each segment
-        };
-    }
-
-    const pathData = busPaths[busId];
-
-    // If this is the first point, just save the position
-    if (!pathData.lastPosition) {
-        pathData.lastPosition = { latitude, longitude };
-        return;
-    }
-
-    const { latitude: lastLat, longitude: lastLng } = pathData.lastPosition;
-
-    // Determine the color of the segment based on some condition (e.g., speed)
-    const segmentColor = determineSegmentColor(busId, latitude, longitude, lastLat, lastLng);
-
-    // Create a new polyline for the segment
-    const segment = L.polyline([[lastLat, lastLng], [latitude, longitude]], {
-        color: segmentColor,
-        weight: 4, // Set line thickness
-    }).addTo(map);
-
-    // Save the segment for future reference
-    pathData.segments.push(segment);
-
-    // Update the last position
-    pathData.lastPosition = { latitude, longitude };
-}
-
-// Function to determine the color of the segment (you can customize this logic)
-function determineSegmentColor(busId, latitude, longitude, lastLat, lastLng) {
-    const distance = calculateDistance(latitude, longitude, lastLat, lastLng);
-    if (distance < 0.01) return 'red'; // Short distance = red
-    if (distance < 0.05) return 'orange'; // Moderate distance = orange
-    return 'green'; // Long distance = green
-}
-
-// Helper function to calculate the distance between two points (Haversine formula)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c / 1000; // Return distance in kilometers
-}
