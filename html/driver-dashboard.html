@@ -7,7 +7,7 @@
 
   <!-- Leaflet.js CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="../css/index.css" />
+  <link rel="stylesheet" href="../css/driverdashboard.css" />
 </head>
 <body>
   <main>
@@ -23,9 +23,17 @@
   
       <!-- Bottom controls (Start and Stop Tracking) -->
       <div id="bottom-controls">
-        <button id="startTrackingButton">Start Tracking</button>
-        <button id="stopTrackingButton" disabled>Stop Tracking</button>
+        <button id="startTracking">Start Tracking</button>
+        <button id="stopTracking" >Stop Tracking</button>
+        <div id="speedDisplay">Speed: 0 km/h</div>
+
       </div>
+      <!-- For the logged-in bus -->
+<p id="speed">Speed: --</p>
+<p id="direction">Direction: --</p>
+
+<!-- For other buses -->
+<div id="otherBuses"></div>
     </div>
   </main>
   
@@ -53,6 +61,9 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.css" />
+
   <script>
     const driverID = localStorage.getItem("driverID");
     if (!driverID) {
@@ -61,6 +72,17 @@
   </script>
   <!-- Leaflet.js JS -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.css"
+/>
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.Default.css"
+/>
+<script
+  src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/leaflet.markercluster.js"
+></script>
 
   <!-- Custom JavaScript -->
   <script src="../js/app.js"></script>
