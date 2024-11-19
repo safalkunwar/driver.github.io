@@ -39,32 +39,7 @@ const busIcon = L.icon({
     popupAnchor: [0, -16]
 });
 
-// Helper to update or add marker for bus
-function updateBusMarker(busID, location, isLoggedInBus = false) {
-    const { latitude, longitude } = location;
 
-    if (!latitude || !longitude) return; // Skip invalid locations
-
-    if (busMarkers[busID]) {
-        busMarkers[busID].setLatLng([latitude, longitude]); // Update position of existing marker
-    } else {
-        // Set marker for the bus with custom bus icon
-        const marker = L.marker([latitude, longitude], { icon: busIcon }).bindPopup(`Bus ID: ${busID}`);
-        busMarkers[busID] = marker;
-        map.addLayer(marker); // Add new marker to the map
-    }
-    if (isLoggedInBus) {
-        map.setView([latitude, longitude], 14); // Auto-center the map on logged-in bus
-    }
-    
-    // If it's the logged-in bus, calculate speed and update
-    if (isLoggedInBus && lastLocation.latitude && lastLocation.longitude) {
-        const { speed } = calculateSpeedAndDirection(lastLocation, location);
-        displaySpeed(speed); // Display speed of logged-in bus
-    }
-
-    lastLocation = location; // Update last known location for speed calculation
-}
 
 // Helper to calculate speed and direction for the logged-in bus
 function calculateSpeedAndDirection(lastLocation, currentLocation) {
@@ -97,16 +72,44 @@ function displaySpeed(speed) {
     speedElement.textContent = `Speed: ${speed.toFixed(2)} km/h`;
 }
 
-// Helper to update polyline for a bus (smooth path along roads)
+function updateBusMarker(busID, location, isLoggedInBus = false) {
+    const { latitude, longitude } = location;
+
+    // Validate latitude and longitude
+    if (!latitude || !longitude) {
+        console.error(`Invalid location data for bus ${busID}:`, location);
+        return; // Skip updating if the location is invalid
+    }
+
+    if (busMarkers[busID]) {
+        busMarkers[busID].setLatLng([latitude, longitude]);
+    } else {
+        const marker = L.marker([latitude, longitude], { icon: busIcon }).bindPopup(`Bus ID: ${busID}`);
+        busMarkers[busID] = marker;
+        map.addLayer(marker);
+    }
+
+    if (isLoggedInBus) {
+        map.setView([latitude, longitude], 14);
+    }
+}
+
 function updateBusPath(busID, location) {
+    const { latitude, longitude } = location;
+
+    // Validate latitude and longitude
+    if (!latitude || !longitude) {
+        console.error(`Invalid location data for bus path ${busID}:`, location);
+        return; // Skip adding to path if the location is invalid
+    }
+
     if (!busPaths[busID]) {
-        // Initialize new polyline if it doesn't exist for this bus
         busPaths[busID] = L.polyline([], { color: 'blue', weight: 3, opacity: 0.7 }).addTo(map);
     }
 
-    // Add new location to the polyline path
-    busPaths[busID].addLatLng([location.latitude, location.longitude]);
+    busPaths[busID].addLatLng([latitude, longitude]);
 }
+
 
 // Fetch and update bus locations from Firebase (Historical Path)
 function fetchBusLocations() {
@@ -144,24 +147,52 @@ function fetchBusLocations() {
     });
 
     // Handle data changes or new location updates for any bus
-    dbRef.on('child_changed', snapshot => {
-        const busData = snapshot.val();
+    dbRef.on('child_added', snapshot => {
         const busID = snapshot.key;
+        const busData = snapshot.val();
     
-        if (!busData) {
-            console.warn(`No data found for updated bus ${busID}`);
-            return;
-        }
+        if (!busData) return;
     
         const location = {
             latitude: busData.latitude,
             longitude: busData.longitude
         };
     
-        // Update markers and paths for all buses
-        updateBusMarker(busID, location, busID === loggedInBusID); // True if it's the logged-in bus
-        updateBusPath(busID, location);  // Update path for all buses
+        updateBusMarker(busID, location);
+        updateBusPath(busID, location);
     });
+    
+    dbRef.on('child_removed', snapshot => {
+        const busID = snapshot.key;
+    
+        if (busMarkers[busID]) {
+            map.removeLayer(busMarkers[busID]);
+            delete busMarkers[busID];
+        }
+    
+        if (busPaths[busID]) {
+            map.removeLayer(busPaths[busID]);
+            delete busPaths[busID];
+        }
+    });
+    dbRef.on('child_changed', snapshot => {
+        const busID = snapshot.key;
+        const busData = snapshot.val();
+    
+        if (!busData || !busData.latitude || !busData.longitude) {
+            console.warn(`Invalid or missing location data for bus ${busID}:`, busData);
+            return; // Skip processing if data is invalid
+        }
+    
+        const location = {
+            latitude: busData.latitude,
+            longitude: busData.longitude,
+        };
+    
+        updateBusMarker(busID, location, busID === loggedInBusID);
+        updateBusPath(busID, location);
+    });
+    
     
 }
 
@@ -189,7 +220,6 @@ function stopTracking() {
     }
 }
 
-// Update Driver's Location
 function updateDriverLocation(driverID) {
     if (!navigator.geolocation) {
         alert('Geolocation is not supported by your browser.');
@@ -198,21 +228,26 @@ function updateDriverLocation(driverID) {
 
     navigator.geolocation.getCurrentPosition(position => {
         const { latitude, longitude } = position.coords;
-        const timestamp = Date.now();
 
-        // Update Firebase with the driver's current location
+        if (latitude === undefined || longitude === undefined) {
+            console.error("Invalid location data. Skipping Firebase update.");
+            return;
+        }
+
+        const timestamp = Date.now();
         dbRef.child(driverID).child(timestamp).set({
             latitude,
             longitude,
             timestamp
         });
 
-        updateBusMarker(driverID, { latitude, longitude }, true); // Update marker for logged-in bus
-        updateBusPath(driverID, { latitude, longitude });  // Update path for logged-in bus
+        updateBusMarker(driverID, { latitude, longitude }, true);
+        updateBusPath(driverID, { latitude, longitude });
     }, error => {
         console.error("Error retrieving location:", error);
     });
 }
+
 
 // Initialize Buttons
 document.getElementById('startTracking').addEventListener('click', startTracking);
@@ -237,4 +272,10 @@ function showDirections(start, end) {
         ],
         routeWhileDragging: true,
     }).addTo(map);
+}
+function clearBusPath(busID) {
+    if (busPaths[busID]) {
+        map.removeLayer(busPaths[busID]);
+        delete busPaths[busID];
+    }
 }
