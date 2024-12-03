@@ -15,7 +15,11 @@
     <div id="map-container">
       <!-- Top controls (Speed and Direction) -->
       <div id="top-controls">
-        <button id="directionButton">Get Direction</button>
+        <div style="position: relative; width: 100%;"class="search-bar">
+          <input id="search-input"type="text" placeholder="Search for buses..." />
+          <div id="suggestions-container" class="suggestions"></div>
+          <button class="toggle-direction-button" id="getDirections">Direction</button>                  
+      </div>
       </div>
   
       <!-- Map area -->
@@ -25,9 +29,7 @@
       <div id="bottom-controls">
         <button id="startTracking">Start Tracking</button>
         <button id="stopTracking" >Stop Tracking</button>
-        <div id="speedDisplay">Speed: 0 km/h</div>
-
-      </div>
+             </div>
       <!-- For the logged-in bus -->
 <p id="speed">Speed: --</p>
 <p id="direction">Direction: --</p>
@@ -36,7 +38,25 @@
 <div id="otherBuses"></div>
     </div>
   </main>
-  
+  <!-- Direction Popup -->
+<div id="direction-popup" class="popup hidden">
+  <h3>Get Directions</h3>
+  <label for="direction-from">From:</label>
+  <div>
+      <input type="text" id="direction-from" class="direction-input" placeholder="Enter starting location" />
+      <div class="suggestions-container"></div>
+  </div>
+
+  <label for="direction-to">To:</label>
+  <div>
+      <input type="text" id="direction-to" class="direction-input" placeholder="Enter destination" />
+      <div class="suggestions-container"></div>
+  </div>
+
+  <button id="start-directions-btn">Start Directions</button>
+  <button onclick="toggleDirectionPopup()">Cancel</button>
+</div>
+
   <!-- Direction Popup -->
   <div id="directionPopup" style="display: none;">
     <h3>Get Directions</h3>
@@ -50,7 +70,6 @@
     <ul id="destSuggestions" class="suggestions-list"></ul>
     
     <button id="getDirections" style="margin-top: 10px;">Get Directions</button>
-    <button id="closeDirectionPopup" style="margin-top: 10px;">Close</button>
   </div>
   <p id="dashboard-error" class="error"></p>
   
@@ -63,6 +82,11 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
 
   <script>
     const driverID = localStorage.getItem("driverID");
@@ -71,7 +95,6 @@
     }
   </script>
   <!-- Leaflet.js JS -->
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <link
   rel="stylesheet"
   href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.css"
