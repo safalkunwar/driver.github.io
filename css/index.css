@@ -84,12 +84,115 @@ header {
 /* Start/Stop Tracking buttons */
 #bottom-controls {
   position: absolute;
-  bottom: 20px;
+  bottom: 10%;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   gap: 10px;
   z-index: 1000;
+}
+.search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.search-bar input {
+  padding: 5px;
+  margin-right: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  z-index: 1000;
+}
+.hidden {
+  display: none;
+}
+.suggestions {
+  border: 1px solid #ccc;
+  background-color: #fff;
+  position: absolute;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+}
+.suggestion-item:hover {
+  background-color: #f0f0f0;
+}
+.emoji-marker {
+  font-size: 24px;
+  text-align: center;
+  line-height: 24px;
+  transform: translate(-50%, -50%);
+}
+.suggestion-item {
+  padding: 8px;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #ccc;
+  margin-bottom: 4px;
+}
+.suggestion-item:hover {
+  background: #f0f0f0;
+}
+.hidden {
+  display: none;
+}
+
+.popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  border-radius: 8px;
+}
+
+.popup h3 {
+  margin-bottom: 10px;
+}
+
+.suggestions-container {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #ccc;
+  z-index: 10;
+  max-height: 150px;
+  overflow-y: auto;
+  width: calc(100% - 2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-item {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background: #f0f0f0;
+}
+
+#start-directions-btn {
+  margin-top: 10px;
+  background: #ff0000;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#start-directions-btn:hover {
+  background: #0056b3;
 }
 
 #bottom-controls button {
@@ -108,7 +211,7 @@ header {
 }
 
 #bottom-controls button:hover {
-  background-color: #0056b3;
+  background-color: #b30000;
 }
 
 /* Popup styling for directions */
@@ -138,3 +241,7 @@ footer {
 .bus-icon {
   font-size: 24px; /* Adjust font size if using an emoji */
 }
+.leaflet-touch .leaflet-control-layers, .leaflet-touch .leaflet-bar {
+  /* height: 50%; */
+  background: white;
+display: none;}
