@@ -372,28 +372,36 @@ function updateBusMarker(busID, location, isLoggedInBus = false) {
         map.setView([latitude, longitude], 14); // Keep the map centered on the logged-in bus
     }
 }
-
+// Function to update the bus path with historical data
 function updateBusPath(busID, location) {
     const { latitude, longitude } = location;
 
     // Validate latitude and longitude
-    if (!latitude || !longitude) {
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
         console.error(`Invalid location data for bus path ${busID}:`, location);
-        return; // Skip adding to path if the location is invalid
+        return; // Skip if the location is invalid
     }
 
-    // Check if we already have a path for this bus
+    // Initialize the path for the bus if it doesn't exist
     if (!busPaths[busID]) {
-        // Create a new path for the bus
-        busPaths[busID] = L.polyline([], { color: 'blue', weight: 3, opacity: 0.7 }).addTo(map);
+        busPaths[busID] = {
+            polyline: L.polyline([], { color: 'blue', weight: 3, opacity: 0.7 }).addTo(map),
+            coordinates: [] // Maintain a list of all historical coordinates
+        };
     }
 
-    // Clear the old path and only add the most recent location
-    busPaths[busID].setLatLngs([[latitude, longitude]]);
+    // Append the new location to the list of coordinates
+    const path = busPaths[busID];
+    path.coordinates.push([latitude, longitude]);
+
+    // Update the polyline with the new set of coordinates
+    path.polyline.setLatLngs(path.coordinates);
+
+    // Optional: Pan the map to the latest point (uncomment if needed)
+    // map.panTo([latitude, longitude]);
 }
 
-
-// Fetch and update bus locations from Firebase // Fetch and update bus locations from Firebase (Only current location and recent path)
+// Example usage: Fetch and update bus locations periodically
 function fetchBusLocations() {
     if (!loggedInBusID) {
         alert('Driver ID not found. Redirecting to login...');
@@ -401,8 +409,8 @@ function fetchBusLocations() {
         return;
     }
 
-    // Fetch only the current location for the logged-in bus
-    dbRef.child(loggedInBusID).limitToLast(1).once('value', snapshot => {
+    // Fetch the bus's location history from Firebase
+    dbRef.child(loggedInBusID).on('value', snapshot => {
         const busData = snapshot.val();
 
         if (!busData) {
@@ -410,72 +418,19 @@ function fetchBusLocations() {
             return;
         }
 
-        const locations = Object.values(busData)
-            .filter(item => item.latitude && item.longitude)
-            .map(item => ({
-                latitude: item.latitude,
-                longitude: item.longitude,
-                timestamp: parseInt(item.timestamp, 10)
-            }));
+        // Process each location update
+        Object.entries(busData).forEach(([timestamp, data]) => {
+            const location = {
+                latitude: parseFloat(data.latitude),
+                longitude: parseFloat(data.longitude)
+            };
 
-        // Render bus marker and path only if locations exist
-        if (locations.length > 0) {
-            const latestLocation = locations[locations.length - 1];
-            updateBusMarker(loggedInBusID, latestLocation, true); // Update marker and calculate speed
-            updateBusPath(loggedInBusID, latestLocation); // Update path for logged-in bus
-        }
-    });
-
-    // Handle new data or location updates for any bus
-    dbRef.on('child_added', snapshot => {
-        const busID = snapshot.key;
-        const busData = snapshot.val();
-
-        if (!busData) return;
-
-        const location = {
-            latitude: busData.latitude,
-            longitude: busData.longitude
-        };
-
-        updateBusMarker(busID, location);
-        updateBusPath(busID, location);
-    });
-
-    // Remove bus data if the bus is no longer sending updates
-    dbRef.on('child_removed', snapshot => {
-        const busID = snapshot.key;
-
-        if (busMarkers[busID]) {
-            map.removeLayer(busMarkers[busID]);
-            delete busMarkers[busID];
-        }
-
-        if (busPaths[busID]) {
-            map.removeLayer(busPaths[busID]);
-            delete busPaths[busID];
-        }
-    });
-
-    // Update path for a bus if its location changes
-    dbRef.on('child_changed', snapshot => {
-        const busID = snapshot.key;
-        const busData = snapshot.val();
-
-        if (!busData || !busData.latitude || !busData.longitude) {
-            console.warn(`Invalid or missing location data for bus ${busID}:`, busData);
-            return; // Skip processing if data is invalid
-        }
-
-        const location = {
-            latitude: busData.latitude,
-            longitude: busData.longitude,
-        };
-
-        updateBusMarker(busID, location, busID === loggedInBusID);
-        updateBusPath(busID, location);
+            updateBusMarker(loggedInBusID, location, true); // Update marker
+            updateBusPath(loggedInBusID, location); // Update path
+        });
     });
 }
+
 
 // Start Tracking the Driver's Bus
 function startTracking() {
