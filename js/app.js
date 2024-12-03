@@ -38,39 +38,318 @@ const busIcon = L.icon({
     iconAnchor: [16, 16], // Anchor the icon to the center
     popupAnchor: [0, -16]
 });
-
-
-
-// Helper to calculate speed and direction for the logged-in bus
-function calculateSpeedAndDirection(lastLocation, currentLocation) {
-    const R = 6371; // Radius of Earth in km
-    const lat1 = lastLocation.latitude * Math.PI / 180;
-    const lon1 = lastLocation.longitude * Math.PI / 180;
-    const lat2 = currentLocation.latitude * Math.PI / 180;
-    const lon2 = currentLocation.longitude * Math.PI / 180;
-
-    const deltaLat = lat2 - lat1;
-    const deltaLon = lon2 - lon1;
-
-    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-        Math.cos(lat1) * Math.cos(lat2) *
-        Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+// Utility: Calculate distance between two coordinates
+function isWithinRadius(lat, lng, centerLat = 27.7172, centerLng = 85.3240, radius = 300) {
+    const toRad = angle => (angle * Math.PI) / 180;
+    const R = 6371; // Earth's radius in km
+    const dLat = toRad(lat - centerLat);
+    const dLng = toRad(lng - centerLng);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(centerLat)) * Math.cos(toRad(lat)) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    const distance = R * c; // Distance in km
-
-    // Speed in km/h
-    const timeDiff = (Date.now() - lastLocation.timestamp) / 1000; // Time difference in seconds
-    const speed = (distance / timeDiff) * 3600; // Speed in km/h
-
-    return { speed };
+    return R * c <= radius;
 }
 
-// Display speed of the logged-in bus on the map
-function displaySpeed(speed) {
-    const speedElement = document.getElementById('speedDisplay');
-    speedElement.textContent = `Speed: ${speed.toFixed(2)} km/h`;
+// Show suggestions below the search button and auto-close after 4 seconds
+function showSuggestions(results, container) {
+    container.innerHTML = ''; // Clear existing suggestions
+
+    results.forEach(result => {
+        const { display_name, lat, lon } = result;
+        if (isWithinRadius(parseFloat(lat), parseFloat(lon))) {
+            const suggestion = document.createElement("div");
+            suggestion.className = "suggestion-item";
+            suggestion.textContent = `📍 ${display_name}`;
+            suggestion.onclick = () => {
+                document.getElementById("search-input").value = display_name;
+                map.setView([parseFloat(lat), parseFloat(lon)], 15); // Center map
+                container.innerHTML = ''; // Clear suggestions
+                addMarker(parseFloat(lat), parseFloat(lon), "📍"); // Add marker with emoji
+            };
+            container.appendChild(suggestion);
+        }
+    });
+
+    // Auto-close suggestions after 4 seconds
+    setTimeout(() => {
+        container.innerHTML = '';
+    }, 10000);
 }
+
+// Add marker with an emoji
+function addMarker(lat, lon, emoji) {
+    L.marker([lat, lon], {
+        icon: L.divIcon({
+            className: 'emoji-marker',
+            html: `<span>${emoji}</span>`,
+            iconSize: [30, 30],
+            popupAnchor: [0, -15],
+        })
+    }).addTo(map);
+}
+
+// Handle search input with suggestions
+document.getElementById("search-input").addEventListener("input", () => {
+    const query = document.getElementById("search-input").value;
+    const suggestionsContainer = document.getElementById("suggestions-container");
+    const searchInput = document.getElementById("search-input");
+    const rect = searchInput.getBoundingClientRect();
+
+    // Position suggestions container
+    suggestionsContainer.style.top = `${rect.bottom + window.scrollY}px`;
+    suggestionsContainer.style.left = `${rect.left + window.scrollX}px`;
+
+    if (query.length < 2) {
+        suggestionsContainer.innerHTML = ''; // Clear if query too short
+        return;
+    }
+
+    // Fetch suggestions
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+        .then(response => response.json())
+        .then(results => {
+            if (results.length === 0) {
+                suggestionsContainer.innerHTML = "<div>No results found.</div>";
+                return;
+            }
+            showSuggestions(results, suggestionsContainer);
+        })
+        .catch(error => console.error("Error fetching suggestions:", error));
+});
+
+// Handle Enter key for search
+document.getElementById("search-input").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+        const query = document.getElementById("search-input").value;
+
+        if (!query) {
+            alert("Please enter a location to search.");
+            return;
+        }
+
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+            .then(response => response.json())
+            .then(results => {
+                if (results.length === 0) {
+                    alert("No results found for the specified location.");
+                    return;
+                }
+
+                const firstResult = results[0];
+                const { lat, lon } = firstResult;
+
+                if (isWithinRadius(parseFloat(lat), parseFloat(lon))) {
+                    map.setView([parseFloat(lat), parseFloat(lon)], 15); // Center map
+                    addMarker(parseFloat(lat), parseFloat(lon), "📍");
+                } else {
+                    alert("No results within 300 km radius of Nepal.");
+                }
+            });
+    }
+});
+
+
+
+// Utility: Calculate distance between two coordinates
+function isWithinRadius(lat, lng, centerLat = 27.7172, centerLng = 85.3240, radius = 300) {
+    const toRad = angle => (angle * Math.PI) / 180;
+    const R = 6371; // Earth's radius in km
+    const dLat = toRad(lat - centerLat);
+    const dLng = toRad(lng - centerLng);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRad(centerLat)) * Math.cos(toRad(lat)) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c <= radius;
+}
+
+// Function to fetch suggestions from Nominatim
+function fetchSuggestions(query, callback) {
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+        .then(response => response.json())
+        .then(data => callback(data))
+        .catch(error => console.error("Error fetching suggestions:", error));
+}
+
+// Handle search input with suggestions
+document.getElementById("search-input").addEventListener("input", () => {
+    const query = document.getElementById("search-input").value;
+    const suggestionsContainer = document.getElementById("suggestions-container");
+    suggestionsContainer.innerHTML = ''; // Clear existing suggestions
+
+    if (query.length < 2) return; // Skip if query is too short
+
+    fetchSuggestions(query, results => {
+        if (results.length === 0) {
+            suggestionsContainer.innerHTML = "<div>No results found.</div>";
+            return;
+        }
+
+        results.forEach(result => {
+            const { display_name, lat, lon } = result;
+            if (isWithinRadius(parseFloat(lat), parseFloat(lon))) {
+                const suggestion = document.createElement("div");
+                suggestion.className = "suggestion-item";
+                suggestion.textContent = display_name;
+                suggestion.onclick = () => {
+                    document.getElementById("search-input").value = display_name;
+                    map.setView([parseFloat(lat), parseFloat(lon)], 15); // Center map
+                    suggestionsContainer.innerHTML = ''; // Clear suggestions
+                };
+                suggestionsContainer.appendChild(suggestion);
+            }
+        });
+    });
+});
+
+// Handle Enter key for search
+document.getElementById("search-input").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+        const query = document.getElementById("search-input").value;
+
+        if (!query) {
+            alert("Please enter a location to search.");
+            return;
+        }
+
+        fetchSuggestions(query, results => {
+            if (results.length === 0) {
+                alert("No results found for the specified location.");
+                return;
+            }
+
+            const firstResult = results[0];
+            const { lat, lon } = firstResult;
+
+            if (isWithinRadius(parseFloat(lat), parseFloat(lon))) {
+                map.setView([parseFloat(lat), parseFloat(lon)], 15); // Center map
+            } else {
+                alert("No results within 300 km radius of Nepal.");
+            }
+        });
+    }
+});
+
+// Show speed and direction
+document.getElementById("startTracking").addEventListener("click", () => {
+    alert("Tracking started.");
+});
+
+document.getElementById("stopTracking").addEventListener("click", () => {
+    alert("Tracking stopped.");
+});
+
+// Function to toggle the visibility of the direction popup
+function toggleDirectionPopup() {
+    const popup = document.getElementById("direction-popup");
+    popup.classList.toggle("hidden");
+}
+
+// Function to fetch and show suggestions for a search field
+function showSuggestionsForField(query, container, inputField) {
+    if (query.length < 2) {
+        container.innerHTML = ""; // Clear suggestions if query too short
+        return;
+    }
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+        .then(response => response.json())
+        .then(results => {
+            container.innerHTML = ""; // Clear existing suggestions
+
+            if (results.length === 0) {
+                container.innerHTML = "<div>No results found.</div>";
+                return;
+            }
+
+            results.forEach(result => {
+                const { display_name, lat, lon } = result;
+                if (isWithinRadius(parseFloat(lat), parseFloat(lon))) {
+                    const suggestion = document.createElement("div");
+                    suggestion.className = "suggestion-item";
+                    suggestion.textContent = `📍 ${display_name}`;
+                    suggestion.onclick = () => {
+                        inputField.value = display_name;
+                        inputField.dataset.lat = lat;
+                        inputField.dataset.lng = lon;
+                        container.innerHTML = ""; // Clear suggestions
+                    };
+                    container.appendChild(suggestion);
+                }
+            });
+
+            // Auto-close suggestions after 4 seconds
+            setTimeout(() => {
+                container.innerHTML = "";
+            }, 4000);
+        })
+        .catch(error => console.error("Error fetching suggestions:", error));
+}
+
+// Event listener for direction popup inputs
+document.querySelectorAll(".direction-input").forEach(inputField => {
+    inputField.addEventListener("input", event => {
+        const query = event.target.value;
+        const suggestionsContainer = inputField.nextElementSibling;
+        showSuggestionsForField(query, suggestionsContainer, inputField);
+    });
+});
+
+// Handle Get Directions button click
+function startDirections() {
+    const fromField = document.getElementById("direction-from");
+    const toField = document.getElementById("direction-to");
+
+    const fromLat = parseFloat(fromField.dataset.lat);
+    const fromLng = parseFloat(fromField.dataset.lng);
+    const toLat = parseFloat(toField.dataset.lat);
+    const toLng = parseFloat(toField.dataset.lng);
+
+    console.log("Starting location:", fromLat, fromLng);
+    console.log("Destination location:", toLat, toLng);
+
+    if (isNaN(fromLat) || isNaN(fromLng)) {
+        alert("Please select a valid starting location.");
+        return;
+    }
+
+    if (isNaN(toLat) || isNaN(toLng)) {
+        alert("Please select a valid destination.");
+        return;
+    }
+
+    // Add Routing Control
+    L.Routing.control({
+        waypoints: [
+            L.latLng(fromLat, fromLng),
+            L.latLng(toLat, toLng),
+        ],
+        routeWhileDragging: true,
+        lineOptions: {
+            styles: [{ color: 'blue', weight: 4 }]
+        },
+        show: false, // Disable default instruction popup
+        createMarker: () => null, // Disable markers
+    }).addTo(map);
+
+    // Clear fields and close popup
+    fromField.value = "";
+    toField.value = "";
+    fromField.dataset.lat = "";
+    fromField.dataset.lng = "";
+    toField.dataset.lat = "";
+    toField.dataset.lng = "";
+    toggleDirectionPopup();
+}
+
+
+// Add toggle functionality to the Get Directions button
+document.getElementById("getDirections").addEventListener("click", toggleDirectionPopup);
+
+// Attach event listener to the Start Directions button inside the popup
+document.getElementById("start-directions-btn").addEventListener("click", startDirections);
+
 
 function updateBusMarker(busID, location, isLoggedInBus = false) {
     const { latitude, longitude } = location;
@@ -90,7 +369,7 @@ function updateBusMarker(busID, location, isLoggedInBus = false) {
     }
 
     if (isLoggedInBus) {
-        map.setView([latitude, longitude], 14);
+        map.setView([latitude, longitude], 14); // Keep the map centered on the logged-in bus
     }
 }
 
@@ -103,15 +382,18 @@ function updateBusPath(busID, location) {
         return; // Skip adding to path if the location is invalid
     }
 
+    // Check if we already have a path for this bus
     if (!busPaths[busID]) {
+        // Create a new path for the bus
         busPaths[busID] = L.polyline([], { color: 'blue', weight: 3, opacity: 0.7 }).addTo(map);
     }
 
-    busPaths[busID].addLatLng([latitude, longitude]);
+    // Clear the old path and only add the most recent location
+    busPaths[busID].setLatLngs([[latitude, longitude]]);
 }
 
 
-// Fetch and update bus locations from Firebase (Historical Path)
+// Fetch and update bus locations from Firebase // Fetch and update bus locations from Firebase (Only current location and recent path)
 function fetchBusLocations() {
     if (!loggedInBusID) {
         alert('Driver ID not found. Redirecting to login...');
@@ -119,8 +401,8 @@ function fetchBusLocations() {
         return;
     }
 
-    // Fetch historical path for the logged-in bus
-    dbRef.child(loggedInBusID).once('value', snapshot => {
+    // Fetch only the current location for the logged-in bus
+    dbRef.child(loggedInBusID).limitToLast(1).once('value', snapshot => {
         const busData = snapshot.val();
 
         if (!busData) {
@@ -138,62 +420,61 @@ function fetchBusLocations() {
 
         // Render bus marker and path only if locations exist
         if (locations.length > 0) {
-            locations.forEach((location, index) => {
-                // Only calculate path and speed for the logged-in bus
-                updateBusMarker(loggedInBusID, location, true); // Update marker and calculate speed
-                updateBusPath(loggedInBusID, location); // Update path for logged-in bus
-            });
+            const latestLocation = locations[locations.length - 1];
+            updateBusMarker(loggedInBusID, latestLocation, true); // Update marker and calculate speed
+            updateBusPath(loggedInBusID, latestLocation); // Update path for logged-in bus
         }
     });
 
-    // Handle data changes or new location updates for any bus
+    // Handle new data or location updates for any bus
     dbRef.on('child_added', snapshot => {
         const busID = snapshot.key;
         const busData = snapshot.val();
-    
+
         if (!busData) return;
-    
+
         const location = {
             latitude: busData.latitude,
             longitude: busData.longitude
         };
-    
+
         updateBusMarker(busID, location);
         updateBusPath(busID, location);
     });
-    
+
+    // Remove bus data if the bus is no longer sending updates
     dbRef.on('child_removed', snapshot => {
         const busID = snapshot.key;
-    
+
         if (busMarkers[busID]) {
             map.removeLayer(busMarkers[busID]);
             delete busMarkers[busID];
         }
-    
+
         if (busPaths[busID]) {
             map.removeLayer(busPaths[busID]);
             delete busPaths[busID];
         }
     });
+
+    // Update path for a bus if its location changes
     dbRef.on('child_changed', snapshot => {
         const busID = snapshot.key;
         const busData = snapshot.val();
-    
+
         if (!busData || !busData.latitude || !busData.longitude) {
             console.warn(`Invalid or missing location data for bus ${busID}:`, busData);
             return; // Skip processing if data is invalid
         }
-    
+
         const location = {
             latitude: busData.latitude,
             longitude: busData.longitude,
         };
-    
+
         updateBusMarker(busID, location, busID === loggedInBusID);
         updateBusPath(busID, location);
     });
-    
-    
 }
 
 // Start Tracking the Driver's Bus
